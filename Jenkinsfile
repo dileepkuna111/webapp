@@ -9,7 +9,7 @@ pipeline {
 
     environment {
         // Replace with your APPLICATION EC2 PRIVATE IP
-        APP_HOST = '10.0.1.100'
+        APP_HOST = '172.31.44.127'
 
         // Jenkins SSH credential ID
         SSH_CREDENTIALS = 'app-ec2-ssh'
