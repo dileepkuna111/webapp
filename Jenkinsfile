@@ -41,55 +41,58 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
-            steps {
-                echo 'Deploying application to Amazon Linux'
+stage('Deploy') {
+    steps {
+        echo 'Deploying application to Amazon Linux'
 
-                sshagent(credentials: [SSH_CREDENTIALS]) {
+        withCredentials([
+            sshUserPrivateKey(
+                credentialsId: 'app-ec2-ssh',
+                keyFileVariable: 'SSH_KEY',
+                usernameVariable: 'SSH_USER'
+            )
+        ]) {
+            sh '''
+                set -eu
 
-                    sh '''
-                        set -eu
+                ssh -i "$SSH_KEY" \
+                    -o StrictHostKeyChecking=yes \
+                    $SSH_USER@$APP_HOST \
+                    "sudo systemctl is-active nginx"
 
-                        scp index.html \
-                        ec2-user@${APP_HOST}:/tmp/index-${BUILD_NUMBER}.html
+                scp -i "$SSH_KEY" \
+                    -o StrictHostKeyChecking=yes \
+                    index.html \
+                    $SSH_USER@$APP_HOST:/tmp/index.html
 
-                        ssh ec2-user@${APP_HOST} \
-                        "sudo install -o root -g root -m 0644 \
-                        /tmp/index-${BUILD_NUMBER}.html \
-                        /usr/share/nginx/html/index.html && \
-                        sudo rm -f /tmp/index-${BUILD_NUMBER}.html"
-                    '''
-                }
-            }
-        }
-
-        stage('Smoke Test') {
-            steps {
-                echo 'Checking live application'
-
-                sh '''
-                    set -eu
-
-                    curl --fail --silent --show-error \
-                    http://${APP_HOST}/ \
-                    -o response.html
-
-                    grep -q 'Hello, World!' response.html
-
-                    echo "SMOKE TEST PASSED"
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'APPLICATION DEPLOYED SUCCESSFULLY'
-        }
-
-        failure {
-            echo 'PIPELINE FAILED - CHECK JENKINS CONSOLE OUTPUT'
+                ssh -i "$SSH_KEY" \
+                    -o StrictHostKeyChecking=yes \
+                    $SSH_USER@$APP_HOST \
+                    "sudo install -o root -g root -m 0644 \
+                    /tmp/index.html \
+                    /usr/share/nginx/html/index.html && \
+                    rm -f /tmp/index.html"
+            '''
         }
     }
 }
+
+stage('Smoke Test') {
+    steps {
+        echo 'Checking deployed application'
+
+        sh '''
+            set -eu
+
+            curl --fail --silent --show-error \
+                http://${APP_HOST}/ \
+                -o response.html
+
+            grep -q 'Hello, World!' response.html
+
+            echo "SMOKE TEST PASSED"
+        '''
+    }
+}
+
 
